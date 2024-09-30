@@ -1,0 +1,6 @@
+ollama:
+  host: "http://localhost:11435"
+  model: "qwen2.5"
+openai:
+  api_key: "some-key"
+  model: "gpt-4o-mini"

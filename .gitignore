@@ -1,0 +1,58 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Output directories
+bin/
+build/
+
+# Go build artifacts
+*.log
+*.test
+*.out
+
+# Dependencies
+vendor/
+
+# Go modules
+go.sum
+
+# IDE and editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+
+# MacOS-specific files
+.DS_Store
+
+# Logs and debugging files
+*.log
+*.trace
+
+# Coverage files
+coverage.out
+*.coverprofile
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+
+# Godoc and Golint reports
+doc/
+lint/
+
+# Generated files by go tools
+*.prof
+*.pprof
+*.svg
+*.png
+
+# Config files and environment files (make sure to add only those you do not wish to commit)
+.env
+config.yaml
