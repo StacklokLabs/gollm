@@ -23,7 +23,7 @@ import (
 )
 
 func TestGenerate(t *testing.T) {
-	// Mock server to simulate OpenAI API
+	// Mock response from OpenAI API
 	mockResponse := OpenAIResponse{
 		ID:      "test-id",
 		Object:  "chat.completion",
@@ -96,17 +96,15 @@ func TestGenerate(t *testing.T) {
 		t.Fatalf("Generate returned error: %v", err)
 	}
 
-	// Validate the response
-	if response.ID != mockResponse.ID {
-		t.Errorf("Expected ID %s, got %s", mockResponse.ID, response.ID)
-	}
-	if response.Choices[0].Message.Content != mockResponse.Choices[0].Message.Content {
-		t.Errorf("Expected content %s, got %s", mockResponse.Choices[0].Message.Content, response.Choices[0].Message.Content)
+	// Validate the response content as a string
+	expectedContent := mockResponse.Choices[0].Message.Content
+	if response != expectedContent {
+		t.Errorf("Expected response '%s', got '%s'", expectedContent, response)
 	}
 }
 
 func TestGenerateEmbedding(t *testing.T) {
-	// Mock server to simulate OpenAI API
+	// Mock response from OpenAI API
 	mockResponse := OpenAIEmbeddingResponse{
 		Object: "list",
 		Data: []struct {
@@ -160,16 +158,19 @@ func TestGenerateEmbedding(t *testing.T) {
 	ctx := context.Background()
 	text := "Test embedding text."
 
-	response, err := backend.Embed(ctx, text)
+	embedding, err := backend.Embed(ctx, text)
 	if err != nil {
 		t.Fatalf("GenerateEmbedding returned error: %v", err)
 	}
 
-	// Validate the response
-	if response.Data[0].Embedding[0] != mockResponse.Data[0].Embedding[0] {
-		t.Errorf("Expected embedding %v, got %v", mockResponse.Data[0].Embedding, response.Data[0].Embedding)
+	// Validate the response embedding as a slice of float32
+	expectedEmbedding := mockResponse.Data[0].Embedding
+	if len(embedding) != len(expectedEmbedding) {
+		t.Errorf("Expected embedding length %d, got %d", len(expectedEmbedding), len(embedding))
 	}
-	if response.Model != mockResponse.Model {
-		t.Errorf("Expected model %s, got %s", mockResponse.Model, response.Model)
+	for i, v := range embedding {
+		if v != expectedEmbedding[i] {
+			t.Errorf("Expected embedding[%d] = %f, got %f", i, expectedEmbedding[i], v)
+		}
 	}
 }

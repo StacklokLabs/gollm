@@ -1,17 +1,3 @@
-// Copyright 2024 Stacklok, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package backend
 
 import (
@@ -22,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/stackloklabs/gollm/pkg/logger"
 )
 
 const (
@@ -31,7 +19,6 @@ const (
 )
 
 // OllamaBackend represents a backend for interacting with the Ollama API.
-// It holds the necessary configuration for making API requests.
 type OllamaBackend struct {
 	Model   string
 	Client  *http.Client
@@ -39,7 +26,6 @@ type OllamaBackend struct {
 }
 
 // Response represents the structure of the response received from the Ollama API.
-// It contains information about the generated content, model details, and performance metrics.
 type Response struct {
 	Model              string `json:"model"`
 	CreatedAt          string `json:"created_at"`
@@ -55,13 +41,12 @@ type Response struct {
 	EvalDuration       int64  `json:"eval_duration"`
 }
 
-// OllamaEmbeddingResponse represents the structure of the response received from the Ollama API for embeddings.
+// OllamaEmbeddingResponse represents the response from the Ollama API for embeddings.
 type OllamaEmbeddingResponse struct {
 	Embedding []float32 `json:"embedding"`
 }
 
-// NewOllamaBackend creates and returns a new OllamaBackend instance.
-// It takes a base URL and a model name as parameters.
+// NewOllamaBackend creates a new OllamaBackend instance.
 func NewOllamaBackend(baseURL, model string) *OllamaBackend {
 	return &OllamaBackend{
 		BaseURL: baseURL,
@@ -73,8 +58,7 @@ func NewOllamaBackend(baseURL, model string) *OllamaBackend {
 }
 
 // Generate produces a response from the Ollama API based on the given prompt.
-// It sends a request to the Ollama generate endpoint and returns the response.
-func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (*Response, error) {
+func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (string, error) {
 	url := o.BaseURL + generateEndpoint
 	reqBody := map[string]interface{}{
 		"model":  o.Model,
@@ -84,36 +68,47 @@ func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (*Response,
 
 	reqBodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		logger.Errorf("Failed to marshal request body: %v", err)
+		return "", fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		logger.Errorf("Failed to create request: %v", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	logger.Infof("Sending augmented prompt to Ollama LLM model: %s", o.Model)
+
 	resp, err := o.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
+		logger.Errorf("HTTP request failed: %v", err)
+		return "", fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to generate response from Ollama: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
+		logger.Errorf("Failed to generate response from Ollama: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
+		return "", fmt.Errorf("failed to generate response from Ollama: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result Response
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		logger.Errorf("Failed to decode response: %v", err)
+		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return &result, nil
+	logger.Infof("Received response from Ollama for LLM model %s", result.Model)
+
+	return result.Response, nil
 }
 
 // Embed generates embeddings for the given input text using the Ollama API.
 func (o *OllamaBackend) Embed(ctx context.Context, input string) ([]float32, error) {
+	logger.Infof("Ollama Embedding model %s prompt: %s", o.Model, input)
+	logger.Infof("Sending request to Ollama API at %s with Embedding model: %s", o.BaseURL, o.Model)
 	url := o.BaseURL + embedEndpoint
 	reqBody := map[string]interface{}{
 		"model":  o.Model,
@@ -122,30 +117,37 @@ func (o *OllamaBackend) Embed(ctx context.Context, input string) ([]float32, err
 
 	reqBodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
+		logger.Errorf("Failed to marshal request body: %v", err)
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBodyBytes))
 	if err != nil {
+		logger.Errorf("Failed to create request: %v", err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := o.Client.Do(req)
 	if err != nil {
+		logger.Errorf("HTTP request failed: %v", err)
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		logger.Errorf("Failed to generate embeddings from Ollama: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 		return nil, fmt.Errorf("failed to generate embeddings from Ollama: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result OllamaEmbeddingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logger.Errorf("Failed to decode response: %v", err)
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
+
+	logger.Infof("Received vector embeddings from Ollama model %s", o.Model)
 
 	return result.Embedding, nil
 }

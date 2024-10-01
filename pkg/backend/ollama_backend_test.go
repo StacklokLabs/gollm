@@ -82,14 +82,8 @@ func TestOllamaGenerate(t *testing.T) {
 	}
 
 	// Validate the response
-	if response.Model != mockResponse.Model {
-		t.Errorf("Expected model %s, got %s", mockResponse.Model, response.Model)
-	}
-	if response.Response != mockResponse.Response {
-		t.Errorf("Expected response '%s', got '%s'", mockResponse.Response, response.Response)
-	}
-	if response.Done != mockResponse.Done {
-		t.Errorf("Expected Done %v, got %v", mockResponse.Done, response.Done)
+	if response != mockResponse.Response {
+		t.Errorf("Expected response '%s', got '%s'", mockResponse.Response, response)
 	}
 }
 

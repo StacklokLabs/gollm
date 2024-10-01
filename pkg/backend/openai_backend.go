@@ -21,10 +21,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/stackloklabs/gollm/pkg/logger"
 )
 
 // OpenAIBackend represents a backend for interacting with the OpenAI API.
-// It holds the necessary credentials and configuration for making API requests.
+// It contains configuration details and methods for making API requests.
 type OpenAIBackend struct {
 	APIKey     string
 	Model      string
@@ -32,15 +34,31 @@ type OpenAIBackend struct {
 	BaseURL    string
 }
 
+// OpenAIEmbeddingResponse represents the structure of the response received from the OpenAI API
+// for an embedding request. It contains the generated embeddings, usage statistics, and other
+// metadata related to the API call.
+type OpenAIEmbeddingResponse struct {
+	Object string `json:"object"`
+	Data   []struct {
+		Object    string    `json:"object"`
+		Embedding []float32 `json:"embedding"`
+		Index     int       `json:"index"`
+	} `json:"data"`
+	Model string `json:"model"`
+	Usage struct {
+		PromptTokens int `json:"prompt_tokens"`
+		TotalTokens  int `json:"total_tokens"`
+	} `json:"usage"`
+}
+
 // NewOpenAIBackend creates and returns a new OpenAIBackend instance.
-// It takes an API key and a model name as parameters.
 //
 // Parameters:
-//   - apiKey: A string containing the OpenAI API key for authentication.
-//   - model: A string specifying the name of the OpenAI model to use.
+//   - apiKey: The API key for authenticating with the OpenAI API.
+//   - model: The name of the OpenAI model to use for generating responses.
 //
 // Returns:
-//   - *OpenAIBackend: A pointer to the newly created OpenAIBackend instance.
+//   - A pointer to a new OpenAIBackend instance configured with the provided API key and model.
 func NewOpenAIBackend(apiKey, model string) *OpenAIBackend {
 	return &OpenAIBackend{
 		APIKey:     apiKey,
@@ -50,8 +68,9 @@ func NewOpenAIBackend(apiKey, model string) *OpenAIBackend {
 	}
 }
 
-// OpenAIResponse represents the structure of the response received from the OpenAI API.
-// It contains information about the generated content, model details, and usage statistics.
+// OpenAIResponse represents the structure of the response received from the OpenAI API
+// for a chat completion request. It contains information about the generated text,
+// usage statistics, and other metadata related to the API call.
 type OpenAIResponse struct {
 	ID      string `json:"id"`
 	Object  string `json:"object"`
@@ -72,17 +91,16 @@ type OpenAIResponse struct {
 	} `json:"usage"`
 }
 
-// Generate produces a response from the OpenAI API based on the given prompt.
-// It sends a request to the OpenAI chat completions endpoint and returns the response.
+// Generate sends a prompt to the OpenAI API and returns the generated response.
 //
 // Parameters:
-//   - ctx: A context.Context for handling timeouts and cancellations.
-//   - prompt: A string containing the user's input prompt.
+//   - ctx: The context for the API request, which can be used for cancellation.
+//   - prompt: The input text prompt for which to generate a response.
 //
 // Returns:
-//   - *OpenAIResponse: A pointer to the OpenAIResponse struct containing the API's response.
-//   - error: An error if the request fails or if there's an issue processing the response.
-func (o *OpenAIBackend) Generate(ctx context.Context, prompt string) (*OpenAIResponse, error) {
+//   - A string containing the generated response from the OpenAI model.
+//   - An error if the API request fails or if there's an issue processing the response.
+func (o *OpenAIBackend) Generate(ctx context.Context, prompt string) (string, error) {
 	url := o.BaseURL + "/v1/chat/completions"
 	reqBody := map[string]interface{}{
 		"model": o.Model,
@@ -93,70 +111,72 @@ func (o *OpenAIBackend) Generate(ctx context.Context, prompt string) (*OpenAIRes
 
 	reqBodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		logger.Errorf("Failed to marshal request body: %v", err)
+		return "", fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		logger.Errorf("Failed to create request: %v", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+o.APIKey)
 
+	logger.Infof("Sending augmented prompt to OpenAI API at %s with model %s", url, o.Model)
+
 	resp, err := o.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
+		logger.Errorf("HTTP request failed: %v", err)
+		return "", fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to generate response from OpenAI: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
+		logger.Errorf("Failed to generate response from OpenAI: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
+		return "", fmt.Errorf("failed to generate response from OpenAI: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result OpenAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		logger.Errorf("Failed to decode response: %v", err)
+		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return &result, nil
+	logger.Infof("Received response from OpenAI for model %s", result.Model)
+
+	return result.Choices[0].Message.Content, nil
 }
 
-// OpenAIEmbeddingResponse represents the structure of the response received from OpenAI's embedding API.
-// It contains information about the generated embeddings, including the model used and usage statistics.
-type OpenAIEmbeddingResponse struct {
-	Object string `json:"object"`
-	Data   []struct {
-		Object    string    `json:"object"`
-		Embedding []float32 `json:"embedding"`
-		Index     int       `json:"index"`
-	} `json:"data"`
-	Model string `json:"model"`
-	Usage struct {
-		PromptTokens int `json:"prompt_tokens"`
-		TotalTokens  int `json:"total_tokens"`
-	} `json:"usage"`
-}
-
-// GenerateEmbedding creates an embedding vector representation of the input text using OpenAI's API.
-// It takes a context for cancellation and timeout, and the text to be embedded.
-// The function returns an EmbeddingResponse containing the embedding vector and related information,
-// or an error if the API request fails or the response cannot be processed.
-func (o *OpenAIBackend) Embed(ctx context.Context, text string) (*OpenAIEmbeddingResponse, error) {
+// Embed generates an embedding vector for the given text using the OpenAI API.
+//
+// Parameters:
+//   - ctx: The context for the API request, which can be used for cancellation.
+//   - text: The input text to be embedded.
+//
+// Returns:
+//   - A slice of float32 values representing the embedding vector.
+//   - An error if the API request fails or if there's an issue processing the response.
+func (o *OpenAIBackend) Embed(ctx context.Context, text string) ([]float32, error) {
+	logger.Infof("OpenAI Embedding model %s prompt: %s", o.Model, text)
+	logger.Infof("Sending request to OpenAI API at %s with Embedding model: %s", o.BaseURL, o.Model)
 	url := o.BaseURL + "/v1/embeddings"
 	reqBody := map[string]interface{}{
-		"model": "text-embedding-ada-002",
+		"model": o.Model,
 		"input": text,
 	}
 
 	reqBodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
+		logger.Errorf("Failed to marshal request body: %v", err)
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBodyBytes))
 	if err != nil {
+		logger.Errorf("Failed to create request: %v", err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -165,19 +185,24 @@ func (o *OpenAIBackend) Embed(ctx context.Context, text string) (*OpenAIEmbeddin
 
 	resp, err := o.HTTPClient.Do(req)
 	if err != nil {
+		logger.Errorf("HTTP request failed: %v", err)
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		logger.Errorf("Failed to generate embedding from OpenAI: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 		return nil, fmt.Errorf("failed to generate embedding from OpenAI: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result OpenAIEmbeddingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logger.Errorf("Failed to decode response: %v", err)
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return &result, nil
+	logger.Infof("Received vector embeddings from OpenAI model %s", o.Model)
+
+	return result.Data[0].Embedding, nil
 }

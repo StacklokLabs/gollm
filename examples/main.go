@@ -2,109 +2,146 @@ package main
 
 import (
 	"context"
-
 	"fmt"
-	"log"
-	"math"
+
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/stackloklabs/gollm/pkg/backend"
 	"github.com/stackloklabs/gollm/pkg/config"
+	"github.com/stackloklabs/gollm/pkg/db"
+	"github.com/stackloklabs/gollm/pkg/logger"
 )
 
 func main() {
+	// Initialize Config
 	cfg := config.InitializeViperConfig("config", "yaml", ".")
 
-	// OLLAMA Example
-	ollamaBackend := backend.NewOllamaBackend(cfg.Get("ollama.host"), cfg.Get("ollama.model"))
+	logger.InitLogger()
+
+	// Select backends based on config
+	var embeddingBackend backend.Backend
+	var generationBackend backend.Backend
+
+	// Choose the backend for embeddings based on the config
+	switch cfg.Get("backend.embeddings") {
+	case "ollama":
+		embeddingBackend = backend.NewOllamaBackend(cfg.Get("ollama.host"), cfg.Get("ollama.emb_model"))
+	case "openai":
+		embeddingBackend = backend.NewOpenAIBackend(cfg.Get("openai.api_key"), cfg.Get("openai.emb_model"))
+	default:
+		logger.Fatal("Invalid embeddings backend specified")
+	}
+
+	logger.Info(fmt.Sprintf("Embeddings backend: %s", cfg.Get("backend.embeddings")))
+
+	// Choose the backend for generation based on the config
+	switch cfg.Get("backend.generation") {
+	case "ollama":
+		generationBackend = backend.NewOllamaBackend(cfg.Get("ollama.host"), cfg.Get("ollama.gen_model"))
+	case "openai":
+		generationBackend = backend.NewOpenAIBackend(cfg.Get("openai.api_key"), cfg.Get("openai.gen_model"))
+	default:
+		logger.Fatal("Invalid generation backend specified")
+	}
+
+	logger.Info(fmt.Sprintf("Generation backend: %s", cfg.Get("backend.generation")))
+
+	// Initialize database connection for pgvector
+	dbConnString := cfg.Get("database.url")
+
+	// Initialize the vector database
+	vectorDB, err := db.NewPGVector(dbConnString)
+	if err != nil {
+		logger.Fatalf("Failed to initialize vector database: %v", err)
+	}
+	logger.Info("Vector database initialized")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	ollamaResponse, err := ollamaBackend.Generate(ctx, "Hello, how are you?")
+	// We insert contextual information into the vector store so that the RAG system
+	// can use it to answer the query about the moon landing, effectively overwrighting 1969 with 2023
+	ragContent := "According to the Space Exploration Organization's official records, the moon landing occurred on July 20, 2023, during the Artemis Program. This mission marked the first successful crewed lunar landing since the Apollo program."
+	query := "When was the moon landing?."
+
+	// Embed the query using OpenAI
+	embedding, err := embeddingBackend.Embed(ctx, ragContent)
 	if err != nil {
-		if err == context.DeadlineExceeded {
-			log.Fatal("timeout while waiting for Ollama response")
-		}
-		log.Fatalf("failed to generate response: %v", err)
+		logger.Fatalf("Error generating embedding: %v", err)
 	}
 
-	fmt.Printf("Model: %s\n", ollamaResponse.Model)
-	fmt.Printf("Created At: %s\n", ollamaResponse.CreatedAt)
-	fmt.Printf("Response: %s\n", ollamaResponse.Response)
-	fmt.Printf("Done: %t\n", ollamaResponse.Done)
-	fmt.Printf("Done Reason: %s\n", ollamaResponse.DoneReason)
-	fmt.Printf("Total Duration: %d ms\n", ollamaResponse.TotalDuration)
-	fmt.Printf("Prompt Eval Count: %d\n", ollamaResponse.PromptEvalCount)
-	fmt.Printf("Eval Count: %d\n", ollamaResponse.EvalCount)
+	// Check 1536 is the expected Dimensions value (1536 is the OpenAI default)
+	// expectedDimensions := 1536
+	// if len(embedding) != expectedDimensions {
+	// 	logger.Fatalf("Error: embedding dimensions mismatch. Expected %d, got %d", expectedDimensions, len(embedding))
+	// }
 
-	// OpenAI Example
-	openaiBackend := backend.NewOpenAIBackend(cfg.Get("openai.api_key"), cfg.Get("openai.model"))
-
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	openAIResponse, err := openaiBackend.Generate(ctx, "Hello, how are you?")
+	// Insert the document into the vector store
+	err = insertDocument(vectorDB, ctx, ragContent, embedding)
 	if err != nil {
-		if err == context.DeadlineExceeded {
-			log.Fatal("Timeout while waiting for OpenAI response")
-		}
-		log.Fatalf("Failed to generate response from OpenAI: %v", err)
+		logger.Fatalf("Failed to insert document into vectorDB: %v", err)
 	}
 
-	fmt.Printf("Model: %s\n", openAIResponse.Model)
-	fmt.Printf("Created At: %d\n", openAIResponse.Created)
-	fmt.Printf("ID: %s\n", openAIResponse.ID)
-	fmt.Printf("Object: %s\n", openAIResponse.Object)
-
-	if len(openAIResponse.Choices) > 0 {
-		fmt.Printf("Choice Index: %d\n", openAIResponse.Choices[0].Index)
-		fmt.Printf("Message Role: %s\n", openAIResponse.Choices[0].Message.Role)
-		fmt.Printf("Message Content: %s\n", openAIResponse.Choices[0].Message.Content)
-		fmt.Printf("Finish Reason: %s\n", openAIResponse.Choices[0].FinishReason)
-	}
-
-	fmt.Printf("Prompt Tokens: %d\n", openAIResponse.Usage.PromptTokens)
-	fmt.Printf("Completion Tokens: %d\n", openAIResponse.Usage.CompletionTokens)
-	fmt.Printf("Total Tokens: %d\n", openAIResponse.Usage.TotalTokens)
-
-	// Create a context with a timeout
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Text to generate embedding for
-	text := "Hello, world! This is a test of the embedding generation."
-
-	// Call the GenerateEmbedding function
-	response, err := openaiBackend.Embed(ctx, text)
+	// Embed the query using the specified embedding backend
+	queryEmbedding, err := embeddingBackend.Embed(ctx, query)
 	if err != nil {
-		fmt.Printf("Error generating embedding: %v\n", err)
-		return
+		logger.Fatalf("Error generating query embedding: %v", err)
 	}
 
-	// Print the embedding response details
-	fmt.Printf("Embedding Object: %s\n", response.Object)
-	fmt.Printf("Embedding Model: %s\n", response.Model)
-	fmt.Printf("Prompt Tokens: %d\n", response.Usage.PromptTokens)
-	fmt.Printf("Total Tokens: %d\n", response.Usage.TotalTokens)
-
-	// Print the first few values of the embedding vector
-	if len(response.Data) > 0 {
-		fmt.Printf("Embedding Object: %s\n", response.Data[0].Object)
-		fmt.Printf("Embedding Index: %d\n", response.Data[0].Index)
-		fmt.Printf("Embedding Vector (first 5 values): %v\n", response.Data[0].Embedding[:5])
+	// Retrieve relevant documents for the query embedding
+	retrievedDocs, err := vectorDB.QueryRelevantDocuments(ctx, queryEmbedding, cfg.Get("backend.embeddings"))
+	if err != nil {
+		logger.Fatalf("Error retrieving documents: %v", err)
 	}
 
-	// Example of how to use the embedding
-	if len(response.Data) > 0 && len(response.Data[0].Embedding) > 0 {
-		// Calculate the magnitude of the embedding vector
-		magnitude := 0.0
-		for _, value := range response.Data[0].Embedding {
-			magnitude += float64(value * value)
+	// Log the retrieved documents to see if they include the inserted content
+	for _, doc := range retrievedDocs {
+		logger.Infof("RAG Retrieved Document ID: %s, Content: %v", doc.ID, doc.Metadata["content"])
+	}
+
+	// Augment the query with retrieved context
+	augmentedQuery := combineQueryWithContext(query, retrievedDocs)
+	logger.Infof("Augmented query Constructed using Prompt: %s", query)
+
+	// logger.Infof("Augmented Query: %s", augmentedQuery)
+
+	// Generate response with the specified generation backend
+	response, err := generationBackend.Generate(ctx, augmentedQuery)
+	if err != nil {
+		logger.Fatalf("Failed to generate response: %v", err)
+	}
+
+	logger.Infof("Output from LLM model %s:", response)
+}
+
+// combineQueryWithContext combines the query and retrieved documents' content to provide context for generation.
+func combineQueryWithContext(query string, docs []db.Document) string {
+	var context string
+	for _, doc := range docs {
+		// Cast doc.Metadata["content"] to a string
+		if content, ok := doc.Metadata["content"].(string); ok {
+			context += content + "\n"
 		}
-		magnitude = math.Sqrt(magnitude)
+	}
+	return fmt.Sprintf("Context: %s\nQuery: %s", context, query)
+}
 
-		fmt.Printf("Embedding Vector Magnitude: %f\n", magnitude)
+// Example code to insert a document into the vector store
+func insertDocument(vectorDB *db.PGVector, ctx context.Context, content string, embedding []float32) error {
+	// Generate a unique document ID (for simplicity, using a static value for testing)
+	docID := fmt.Sprintf("doc-%s", uuid.New().String())
+
+	// Create metadata
+	metadata := map[string]interface{}{
+		"content": content,
 	}
 
+	// Save the document and its embedding into the vector store
+	err := vectorDB.SaveEmbedding(ctx, docID, embedding, metadata)
+	if err != nil {
+		return fmt.Errorf("error saving embedding: %v", err)
+	}
+	return nil
 }
