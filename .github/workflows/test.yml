@@ -1,0 +1,22 @@
+name: Main
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+    test:
+        name: Unit testing
+        runs-on: ubuntu-latest
+        steps: 
+            - name: Checkout code
+              uses: actions/checkout@v2
+            - name: Run tests
+              run: go test -cover ./...
+            - name: Lint code
+              run: golangci-lint run
