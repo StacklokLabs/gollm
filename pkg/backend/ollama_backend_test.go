@@ -22,7 +22,11 @@ import (
 	"time"
 )
 
+const contentTypeJSON = "application/json"
+const testEmbeddingText = "Test embedding text."
+
 func TestOllamaGenerate(t *testing.T) {
+	t.Parallel()
 	// Mock response from Ollama API
 	mockResponse := Response{
 		Model:     "test-model",
@@ -39,7 +43,8 @@ func TestOllamaGenerate(t *testing.T) {
 		}
 
 		// Check Content-Type header
-		if r.Header.Get("Content-Type") != "application/json" {
+
+		if r.Header.Get("Content-Type") != contentTypeJSON {
 			t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
 		}
 
@@ -61,8 +66,10 @@ func TestOllamaGenerate(t *testing.T) {
 		}
 
 		// Write the mock response
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockResponse)
+		w.Header().Set("Content-Type", contentTypeJSON)
+		if err := json.NewEncoder(w).Encode(mockResponse); err != nil {
+			t.Errorf("Failed to encode mock response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -88,6 +95,7 @@ func TestOllamaGenerate(t *testing.T) {
 }
 
 func TestOllamaEmbed(t *testing.T) {
+	t.Parallel()
 	// Mock response from Ollama API
 	mockResponse := OllamaEmbeddingResponse{
 		Embedding: []float32{0.1, 0.2, 0.3},
@@ -101,7 +109,7 @@ func TestOllamaEmbed(t *testing.T) {
 		}
 
 		// Check Content-Type header
-		if r.Header.Get("Content-Type") != "application/json" {
+		if r.Header.Get("Content-Type") != contentTypeJSON {
 			t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
 		}
 
@@ -115,13 +123,15 @@ func TestOllamaEmbed(t *testing.T) {
 		if reqBody["model"] != "test-model" {
 			t.Errorf("Expected model 'test-model', got '%v'", reqBody["model"])
 		}
-		if reqBody["prompt"] != "Test embedding text." {
+		if reqBody["prompt"] != testEmbeddingText {
 			t.Errorf("Expected prompt 'Test embedding text.', got '%v'", reqBody["prompt"])
 		}
 
 		// Write the mock response
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockResponse)
+		w.Header().Set("Content-Type", contentTypeJSON)
+		if err := json.NewEncoder(w).Encode(mockResponse); err != nil {
+			t.Errorf("Failed to encode mock response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -133,7 +143,7 @@ func TestOllamaEmbed(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	input := "Test embedding text."
+	input := testEmbeddingText
 
 	embedding, err := backend.Embed(ctx, input)
 	if err != nil {
