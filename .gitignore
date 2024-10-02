@@ -56,3 +56,4 @@ lint/
 # Config files and environment files (make sure to add only those you do not wish to commit)
 .env
 config.yaml
+TODO.md
