@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package db provides database-related functionality for the application.
+// It includes implementations for vector storage and retrieval using PostgreSQL
+// with the pgvector extension, enabling efficient similarity search operations
+// on high-dimensional vector data.
 package db
 
 import (
@@ -19,10 +23,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pgvector/pgvector-go"
-
-	"github.com/stackloklabs/gollm/pkg/logger"
 )
 
 // PGVector represents a connection to a PostgreSQL database with pgvector extension.
@@ -86,8 +89,6 @@ func (pg *PGVector) SaveEmbedding(ctx context.Context, docID string, embedding [
 		// Log the error for debugging purposes
 		return fmt.Errorf("failed to insert document: %w", err)
 	}
-
-	logger.Infof("Document inserted successfully: %s", docID)
 	return nil
 }
 
@@ -164,4 +165,34 @@ func ConvertEmbeddingToPGVector(embedding []float32) string {
 		strValues = append(strValues, fmt.Sprintf("%.6f", val)) // Use "%.6f" for precision
 	}
 	return fmt.Sprintf("{%s}", strings.Join(strValues, ","))
+}
+
+// CombineQueryWithContext combines the query and retrieved documents' content to provide context for generation.
+func CombineQueryWithContext(query string, docs []Document) string {
+	var contextStr string
+	for _, doc := range docs {
+		// Cast doc.Metadata["content"] to a string
+		if content, ok := doc.Metadata["content"].(string); ok {
+			contextStr += content + "\n"
+		}
+	}
+	return fmt.Sprintf("Context: %s\nQuery: %s", contextStr, query)
+}
+
+// InsertDocument insert a document into the vector store
+func InsertDocument(ctx context.Context, vectorDB *PGVector, content string, embedding []float32) error {
+	// Generate a unique document ID (for simplicity, using a static value for testing)
+	docID := fmt.Sprintf("doc-%s", uuid.New().String())
+
+	// Create metadata
+	metadata := map[string]interface{}{
+		"content": content,
+	}
+
+	// Save the document and its embedding into the vector store
+	err := vectorDB.SaveEmbedding(ctx, docID, embedding, metadata)
+	if err != nil {
+		return fmt.Errorf("error saving embedding: %v", err)
+	}
+	return nil
 }

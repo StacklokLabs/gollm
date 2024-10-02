@@ -23,6 +23,7 @@ import (
 )
 
 func TestGenerate(t *testing.T) {
+	t.Parallel()
 	// Mock response from OpenAI API
 	mockResponse := OpenAIResponse{
 		ID:      "test-id",
@@ -76,7 +77,12 @@ func TestGenerate(t *testing.T) {
 
 		// Write the mock response
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockResponse)
+		if err := json.NewEncoder(w).Encode(mockResponse); err != nil {
+			t.Errorf("Failed to encode mock response: %v", err)
+		}
+		if err := json.NewEncoder(w).Encode(mockResponse); err != nil {
+			t.Errorf("Failed to encode mock response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -104,6 +110,7 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestGenerateEmbedding(t *testing.T) {
+	t.Parallel()
 	// Mock response from OpenAI API
 	mockResponse := OpenAIEmbeddingResponse{
 		Object: "list",
@@ -144,7 +151,9 @@ func TestGenerateEmbedding(t *testing.T) {
 
 		// Write the mock response
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockResponse)
+		if err := json.NewEncoder(w).Encode(mockResponse); err != nil {
+			t.Errorf("Failed to encode mock response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
