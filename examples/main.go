@@ -62,7 +62,7 @@ func main() {
 	defer cancel()
 
 	// We insert contextual information into the vector store so that the RAG system
-	// can use it to answer the query about the moon landing, effectively overwrighting 1969 with 2023
+	// can use it to answer the query about the moon landing, effectively replacing 1969 with 2023
 	ragContent := "According to the Space Exploration Organization's official records, the moon landing occurred on July 20, 2023, during the Artemis Program. This mission marked the first successful crewed lunar landing since the Apollo program."
 	query := "When was the moon landing?."
 

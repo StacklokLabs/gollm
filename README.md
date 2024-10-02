@@ -3,9 +3,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/stackloklabs/gollm)](https://goreportcard.com/report/github.com/stackloklabs/gollm)
 [![License](https://img.shields.io/github/license/stackloklabs/gollm)](LICENSE)
 
-Gollm is a Go library that provides an easy interface to interact with Large Language Model backends including [Ollama](https://ollama.com) and [OpenAI](https://openai.com). 
+Gollm is a Go library that provides an easy interface to interact with Large 
+Language Model backends including [Ollama](https://ollama.com) and [OpenAI](https://openai.com), along with an embeddings interface for RAG.
 
-Quickly generate responses and embeddings from these AI models and integrate them into your Go applications.
 
 ## 🌟 Features
 
@@ -38,7 +38,7 @@ Pull and run a model
 ollama run qwen2.5
 ```
 
-Ollama should run on port `11435` and `localhost`, if you change this, don't
+Ollama should run on port `11434` and `localhost`, if you change this, don't
 forget to update your config.
 
 ## 3. OpenAI
@@ -84,80 +84,9 @@ log_level: "info"
 
 # 🛠️ Usage
 
-Best bet is to see `/examples/main.go` for reference
+Best bet is to see `/examples/main.go` for reference, this explains how to use
+the library with full examples for generation, embeddings and implementing RAG.
 
-# 📋 API Reference
-
-Initialise the config (or roll your own)
-
-```go
-cfg := config.InitializeViperConfig("config", "yaml", ".")
-```
-
-## Ollama Integration
-
-Create Ollama or OpenAI Backend Instance:
-
-```go
-var embeddingBackend backend.Backend
-var generationBackend backend.Backend
-```
-
-```go
-ollamaBackend := backend.NewOllamaBackend(cfg.Get("ollama.host"), cfg.Get("ollama.model"))
-```
-
-
-Generate Response:
-
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-defer cancel()
-
-response, err := ollamaBackend.Generate(ctx, "Your prompt here")
-
-fmt.Printf("Model: %s\nResponse: %s\n", response.Model, response.Response)
-```
-
-Embeddings response:
-
-Support is also present for the Ollama's embeddings API
-
-```go
-embeddingResponse, err := ollamaBackend.Embed(ctx, "Text to generate embedding for")
-```
-
-> **Note**
-> 📝 Only certain models provide an embeddings interface, see [ollama docs](https://ollama.com/blog/embedding-models) for more details
-
-## OpenAI Integration
-
-Create OpenAI Backend Instance:
-
-```go
-openaiBackend := backend.NewOpenAIBackend(cfg.Get("openai.api_key"), cfg.Get("openai.gen_model"))
-```
-
-Generate Response:
-
-```go
-response, err := openaiBackend.Generate(ctx, "Your prompt here")
-
-if len(response.Choices) > 0 {
-		fmt.Printf("Choice Index: %d\n", response.Choices[0].Index)
-		fmt.Printf("Message Role: %s\n", response.Choices[0].Message.Role)
-		fmt.Printf("Message Content: %s\n", response.Choices[0].Message.Content)
-		fmt.Printf("Finish Reason: %s\n", response.Choices[0].FinishReason)
-	}
-```
-
-Embeddings response:
-
-Support is also present for the OpenAI embeddings API
-
-```go
-embeddingResponse, err := openaiBackend.GenerateEmbedding(ctx, "Text to generate embedding for")
-```
 
 # 📝 Contributing
 
