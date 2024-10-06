@@ -77,8 +77,9 @@ type OpenAIResponse struct {
 	Choices []struct {
 		Index   int `json:"index"`
 		Message struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
+			Role      string           `json:"role"`
+			Content   string           `json:"content"`
+			ToolCalls []OpenAIToolCall `json:"tool_calls"`
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
@@ -87,6 +88,130 @@ type OpenAIResponse struct {
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 	} `json:"usage"`
+}
+
+// OpenAIResponseMessage represents the message part of the response from the OpenAI API.
+type OpenAIResponseMessage struct {
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	ToolCalls []OpenAIToolCall `json:"tool_calls"`
+}
+
+// OpenAIToolCall represents the structure of a tool call made by the assistant.
+type OpenAIToolCall struct {
+	ID       string             `json:"id"`       // The unique ID of the tool call.
+	Type     string             `json:"type"`     // The type of tool call (e.g., "function").
+	Function OpenAIToolFunction `json:"function"` // The function being called.
+}
+
+// OpenAIToolFunction represents the function call made within a tool call.
+type OpenAIToolFunction struct {
+	Name      string `json:"name"`      // The name of the function being invoked.
+	Arguments string `json:"arguments"` // The JSON string containing the arguments for the function.
+}
+
+// Converse sends a series of messages to the OpenAI API and returns the generated response.
+func (o *OpenAIBackend) Converse(ctx context.Context, conversation *Conversation) (ConversationResponse, error) {
+	msgMap, err := conversation.MessageMap()
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to convert messages to map: %w", err)
+	}
+
+	toolMap, err := conversation.Tools.ToolsMap()
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to convert tools to map: %w", err)
+	}
+	url := o.BaseURL + "/v1/chat/completions"
+	reqBody := map[string]any{
+		"model":    o.Model,
+		"messages": msgMap,
+		"stream":   false,
+		"tools":    toolMap,
+	}
+
+	reqBodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBodyBytes))
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+o.APIKey)
+
+	resp, err := o.HTTPClient.Do(req)
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return ConversationResponse{}, fmt.Errorf("failed to generate response from OpenAI: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result OpenAIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(result.Choices[0].Message.ToolCalls) == 0 {
+		conversation.AddAssistantMessage(result.Choices[0].Message.Content, nil)
+		return ConversationResponse{
+			Role:    "assistant",
+			Content: result.Choices[0].Message.Content,
+		}, nil
+	}
+
+	response := ConversationResponse{
+		Role:      "tool",
+		ToolCalls: make([]ToolCall, 0, len(result.Choices[0].Message.ToolCalls)),
+	}
+	for _, toolCall := range result.Choices[0].Message.ToolCalls {
+		toolName := toolCall.Function.Name
+		toolArgs := toolCall.Function.Arguments
+
+		var parsedArgs map[string]interface{}
+		err = json.Unmarshal([]byte(toolArgs), &parsedArgs)
+		if err != nil {
+			return ConversationResponse{}, fmt.Errorf("failed to unmarshal tool arguments: %w", err)
+		}
+
+		toolResponse, err := conversation.Tools.ExecuteTool(toolName, parsedArgs)
+		if err != nil {
+			return ConversationResponse{}, fmt.Errorf("failed to execute tool: %w", err)
+		}
+
+		// we also need to add the previous reply with the call ID to the conversation
+		// todo: programatically convert
+		conversation.addMessage("assistant", map[string]any{
+			"type": result.Choices[0].Message.ToolCalls[0].Type,
+			"tool_calls": []map[string]any{
+				{
+					"id":   result.Choices[0].Message.ToolCalls[0].ID,
+					"type": result.Choices[0].Message.ToolCalls[0].Type,
+					"function": map[string]any{
+						"name":      result.Choices[0].Message.ToolCalls[0].Function.Name,
+						"arguments": result.Choices[0].Message.ToolCalls[0].Function.Arguments,
+					},
+				},
+			},
+		})
+		conversation.AddToolCall(toolResponse, map[string]any{
+			"tool_call_id": result.Choices[0].Message.ToolCalls[0].ID,
+		})
+
+		response.ToolCalls = append(response.ToolCalls, ToolCall{
+			Function: FunctionCall{
+				Name:      toolName,
+				Arguments: parsedArgs,
+				Result:    toolResponse,
+			},
+		})
+	}
+	return response, nil
 }
 
 // Generate sends a prompt to the OpenAI API and returns the generated response.

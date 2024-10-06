@@ -18,6 +18,7 @@ import "context"
 
 // Backend defines the interface for interacting with various LLM backends.
 type Backend interface {
+	Converse(ctx context.Context, conversation *Conversation) (ConversationResponse, error)
 	Generate(ctx context.Context, prompt string) (string, error)
 	Embed(ctx context.Context, input string) ([]float32, error)
 }
