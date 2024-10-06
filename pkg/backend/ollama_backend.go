@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 )
 
 const (
+	chatEndpoint     = "/api/chat"
 	generateEndpoint = "/api/generate"
 	embedEndpoint    = "/api/embeddings"
 	defaultTimeout   = 30 * time.Second
@@ -37,20 +39,39 @@ type OllamaBackend struct {
 	BaseURL string
 }
 
-// Response represents the structure of the response received from the Ollama API.
-type Response struct {
-	Model              string `json:"model"`
-	CreatedAt          string `json:"created_at"`
-	Response           string `json:"response"`
-	Done               bool   `json:"done"`
-	DoneReason         string `json:"done_reason"`
-	Context            []int  `json:"context"`
-	TotalDuration      int64  `json:"total_duration"`
-	LoadDuration       int64  `json:"load_duration"`
-	PromptEvalCount    int    `json:"prompt_eval_count"`
-	PromptEvalDuration int64  `json:"prompt_eval_duration"`
-	EvalCount          int    `json:"eval_count"`
-	EvalDuration       int64  `json:"eval_duration"`
+// OllamaResponse represents the structure of the response received from the Ollama API.
+type OllamaResponse struct {
+	Model              string                `json:"model"`
+	CreatedAt          string                `json:"created_at"`
+	Response           string                `json:"response"`
+	Done               bool                  `json:"done"`
+	DoneReason         string                `json:"done_reason"`
+	Context            []int                 `json:"context"`
+	TotalDuration      int64                 `json:"total_duration"`
+	LoadDuration       int64                 `json:"load_duration"`
+	PromptEvalCount    int                   `json:"prompt_eval_count"`
+	PromptEvalDuration int64                 `json:"prompt_eval_duration"`
+	EvalCount          int                   `json:"eval_count"`
+	EvalDuration       int64                 `json:"eval_duration"`
+	Message            OllamaResponseMessage `json:"message"`
+}
+
+// OllamaResponseMessage represents the message part of the response from the Ollama API.
+type OllamaResponseMessage struct {
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	ToolCalls []OllamaToolCall `json:"tool_calls"`
+}
+
+// OllamaToolCall represents a tool call to be made by the Ollama API.
+type OllamaToolCall struct {
+	Function OllamaFunctionCall `json:"function"`
+}
+
+// OllamaFunctionCall represents a function call to be made by the Ollama API.
+type OllamaFunctionCall struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
 }
 
 // OllamaEmbeddingResponse represents the response from the Ollama API for embeddings.
@@ -67,6 +88,109 @@ func NewOllamaBackend(baseURL, model string) *OllamaBackend {
 			Timeout: defaultTimeout,
 		},
 	}
+}
+
+type ollamaConversationOption struct {
+	disableTools bool
+}
+
+// Converse drives a conversation with the Ollama API based on the given conversation context.
+func (o *OllamaBackend) Converse(ctx context.Context, conversation *Conversation) (ConversationResponse, error) {
+	resp, err := o.converseRoundTrip(ctx, conversation, ollamaConversationOption{})
+	if errors.Is(err, ErrToolNotFound) {
+		// retry without tools if the error is due to a tool not being found
+		return o.converseRoundTrip(ctx, conversation, ollamaConversationOption{disableTools: true})
+	}
+
+	return resp, err
+}
+
+func (o *OllamaBackend) converseRoundTrip(ctx context.Context, conversation *Conversation, opts ollamaConversationOption) (ConversationResponse, error) {
+	msgMap, err := conversation.MessageMap()
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to convert messages to map: %w", err)
+	}
+
+	url := o.BaseURL + chatEndpoint
+	reqBody := map[string]any{
+		"model":    o.Model,
+		"messages": msgMap,
+		"stream":   false,
+	}
+
+	if !opts.disableTools {
+		toolMap, err := conversation.Tools.ToolsMap()
+		if err != nil {
+			return ConversationResponse{}, fmt.Errorf("failed to convert tools to map: %w", err)
+		}
+		reqBody["tools"] = toolMap
+	}
+
+	reqBodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqBodyBytes))
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := o.Client.Do(req)
+	if err != nil {
+		return ConversationResponse{}, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return ConversationResponse{}, fmt.Errorf("failed to generate response from Ollama: status code %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result OllamaResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ConversationResponse{}, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(result.Message.ToolCalls) == 0 {
+		conversation.AddAssistantMessage(result.Message.Content, nil)
+		return ConversationResponse{
+			Role:    "assistant",
+			Content: result.Message.Content,
+		}, nil
+	}
+
+	response := ConversationResponse{
+		Role:      "tool",
+		ToolCalls: make([]ToolCall, 0, len(result.Message.ToolCalls)),
+	}
+	for _, toolCall := range result.Message.ToolCalls {
+		toolName := toolCall.Function.Name
+		toolArgs := toolCall.Function.Arguments
+
+		toolResponse, err := conversation.Tools.ExecuteTool(toolName, toolArgs)
+		if errors.Is(err, ErrToolNotFound) {
+			// this is a bit of a hack. Ollama models always reply with tool calls and hallucinate
+			// the tool names if tools are given in the request, but the request is not actually
+			// tied to any tool. So we just ignore these and re-send the request with tools disabled
+			return ConversationResponse{}, ErrToolNotFound
+		} else if err != nil {
+			return ConversationResponse{}, fmt.Errorf("failed to execute tool: %w", err)
+		}
+		conversation.AddToolCall(toolResponse, nil)
+
+		response.ToolCalls = append(response.ToolCalls, ToolCall{
+			Function: FunctionCall{
+				Name:      toolName,
+				Arguments: toolArgs,
+				Result:    toolResponse,
+			},
+		})
+	}
+
+	return response, nil
+
 }
 
 // Generate produces a response from the Ollama API based on the given prompt.
@@ -104,7 +228,7 @@ func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (string, er
 		)
 	}
 
-	var result Response
+	var result OllamaResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
