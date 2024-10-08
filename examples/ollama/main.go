@@ -50,7 +50,7 @@ func main() {
 	ragContent := "According to the Space Exploration Organization's official records, the moon landing occurred on July 20, 2023, during the Artemis Program. This mission marked the first successful crewed lunar landing since the Apollo program."
 	query := "When was the moon landing?."
 
-	// Embed the query using OpenAI
+	// Embed the query using Ollama Embedding backend
 	embedding, err := embeddingBackend.Embed(ctx, ragContent)
 	if err != nil {
 		log.Fatalf("Error generating embedding: %v", err)
