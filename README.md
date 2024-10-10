@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/github/license/stackloklabs/gollm)](LICENSE)
 
 Gollm is a Go library that provides an easy interface to interact with Large 
-Language Model backends including [Ollama](https://ollama.com) and [OpenAI](https://openai.com), along with an embeddings interface for RAG.
+Language Model backends including [Ollama](https://ollama.com) and [OpenAI](https://openai.com), along with an embeddings interface for RAG (currently with Postgres pgvector).
 
 
 ## 🌟 Features
@@ -53,8 +53,8 @@ Should you wish, the docker-compose will automate the setup of the database.
 
 # 🛠️ Usage
 
-Best bet is to see `/examples/main.go` for reference, this explains how to use
-the library with full examples for generation, embeddings and implementing RAG.
+Best bet is to see `/examples/*` for reference, this explains how to use
+the library with examples for generation, embeddings and implementing RAG.
 
 # 📝 Contributing
 
