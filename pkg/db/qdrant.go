@@ -1,3 +1,22 @@
+// Copyright 2024 Stacklok, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package db provides database-related functionality for the application.
+// It includes implementations for vector storage and retrieval using PostgreSQL
+// with the pgvector extension, enabling efficient similarity search operations
+// on high-dimensional vector data.
+
 package db
 
 import (
@@ -11,10 +30,9 @@ type QdrantVector struct {
 	client *qdrant.Client
 }
 
-// QDrantDocument represents a document stored in the Qdrant vector database.
-type QDrantDocument struct {
-	ID       string
-	Metadata map[string]interface{}
+// Close closes the Qdrant client connection.
+func (qv *QdrantVector) Close() {
+	qv.client.Close()
 }
 
 // NewQdrantVector initializes a connection to Qdrant.
@@ -35,11 +53,6 @@ func NewQdrantVector(address string, port int) (*QdrantVector, error) {
 		return nil, fmt.Errorf("failed to connect to Qdrant: %w", err)
 	}
 	return &QdrantVector{client: client}, nil
-}
-
-// Close closes the Qdrant client connection.
-func (qv *QdrantVector) Close() {
-	qv.client.Close()
 }
 
 // SaveEmbedding stores an embedding and metadata in Qdrant.
@@ -81,7 +94,7 @@ func (qv *QdrantVector) SaveEmbedding(ctx context.Context, docID string, embeddi
 // Returns:
 //   - A slice of QDrantDocument structs containing the most relevant documents.
 //   - An error if the query fails.
-func (qv *QdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []float32, limit int) ([]QDrantDocument, error) {
+func (qv *QdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []float32, limit int) ([]Document, error) {
 	limitUint := uint64(limit) // Convert limit to uint64
 	query := &qdrant.QueryPoints{
 		CollectionName: "gollm", // Replace with actual collection name
@@ -95,7 +108,7 @@ func (qv *QdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []
 		return nil, fmt.Errorf("failed to search points: %w", err)
 	}
 
-	var docs []QDrantDocument
+	var docs []Document
 	for _, point := range response {
 		var docID string
 		if numericID := point.Id.GetNum(); numericID != 0 {
@@ -104,7 +117,7 @@ func (qv *QdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []
 			docID = point.Id.GetUuid() // UUID
 		}
 		metadata := convertPayloadToMap(point.Payload)
-		doc := QDrantDocument{
+		doc := Document{
 			ID:       docID,
 			Metadata: metadata,
 		}
@@ -154,7 +167,7 @@ func convertPayloadToMap(payload map[string]*qdrant.Value) map[string]interface{
 //
 // Returns:
 //   - An error if the operation fails, nil otherwise.
-func QDrantInsertDocument(ctx context.Context, vectorDB *QdrantVector, content string, embedding []float32) error {
+func (qv *QdrantVector) InsertDocument(ctx context.Context, vectorDB *QdrantVector, content string, embedding []float32) error {
 	// Generate a unique document ID (e.g., using UUID)
 	docID := fmt.Sprintf("doc-%s", qdrant.NewID(""))
 

@@ -10,16 +10,19 @@ import (
 )
 
 func main() {
+	// Initialize Qdrant vector connection
 	qdrantVector, err := db.NewQdrantVector("localhost", 6334)
 	if err != nil {
 		log.Fatalf("Failed to connect to Qdrant: %v", err)
 	}
+	// Defer the Close() method to ensure the connection is properly closed after use
 	defer qdrantVector.Close()
 
+	// Set up a context with a timeout for the Qdrant operations
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	// Create the collection
+	// Create the collection in Qdrant
 	err = CreateCollection(ctx, qdrantVector)
 	if err != nil {
 		log.Fatalf("Failed to create collection: %v", err)
@@ -42,7 +45,7 @@ func main() {
 		log.Fatalf("Failed to query documents: %v", err)
 	}
 
-	// Print out the results
+	// Print out the retrieved documents
 	for _, doc := range docs {
 		log.Printf("Document ID: %s, Content: %v\n", doc.ID, doc.Metadata["content"])
 	}
@@ -50,9 +53,9 @@ func main() {
 
 // CreateCollection creates a new collection in Qdrant
 func CreateCollection(ctx context.Context, vectorDB *db.QdrantVector) error {
-	collectionName := "gollm" // Replace with your collection name
-	vectorSize := uint64(4)   // Size of the embedding vectors
-	distance := "Cosine"      // Distance metric (Cosine, Euclidean, etc.)
+	collectionName := "gollm2" // Replace with your collection name
+	vectorSize := uint64(4)    // Size of the embedding vectors
+	distance := "Cosine"       // Distance metric (Cosine, Euclidean, etc.)
 
 	// Call Qdrant's API to create the collection
 	err := vectorDB.CreateCollection(ctx, collectionName, vectorSize, distance)

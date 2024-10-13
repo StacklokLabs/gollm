@@ -16,6 +16,7 @@
 // It includes implementations for vector storage and retrieval using PostgreSQL
 // with the pgvector extension, enabling efficient similarity search operations
 // on high-dimensional vector data.
+
 package db
 
 import (
@@ -32,13 +33,6 @@ import (
 // It provides methods for storing and querying vector embeddings.
 type PGVector struct {
 	conn *pgxpool.Pool
-}
-
-// Document represents a single document in the vector database.
-// It contains a unique identifier and associated metadata.
-type Document struct {
-	ID       string
-	Metadata map[string]interface{}
 }
 
 // NewPGVector creates a new PGVector instance with a connection to the PostgreSQL database.
