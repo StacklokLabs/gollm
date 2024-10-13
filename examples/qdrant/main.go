@@ -33,7 +33,7 @@ func main() {
 	content := "This is a test document."
 
 	// Insert the document into the Qdrant vector store
-	err = QDrantInsertDocument(ctx, qdrantVector, content, embedding)
+	err = qdrantVector.InsertDocument(ctx, content, embedding)
 	if err != nil {
 		log.Fatalf("Failed to insert document: %v", err)
 	}
@@ -53,9 +53,9 @@ func main() {
 
 // CreateCollection creates a new collection in Qdrant
 func CreateCollection(ctx context.Context, vectorDB *db.QdrantVector) error {
-	collectionName := "gollm2" // Replace with your collection name
-	vectorSize := uint64(4)    // Size of the embedding vectors
-	distance := "Cosine"       // Distance metric (Cosine, Euclidean, etc.)
+	collectionName := "sddd" // Replace with your collection name
+	vectorSize := uint64(4)  // Size of the embedding vectors
+	distance := "Cosine"     // Distance metric (Cosine, Euclidean, etc.)
 
 	// Call Qdrant's API to create the collection
 	err := vectorDB.CreateCollection(ctx, collectionName, vectorSize, distance)
@@ -66,7 +66,7 @@ func CreateCollection(ctx context.Context, vectorDB *db.QdrantVector) error {
 }
 
 // QDrantInsertDocument inserts a document into the Qdrant vector store.
-func QDrantInsertDocument(ctx context.Context, vectorDB *db.QdrantVector, content string, embedding []float32) error {
+func QDrantInsertDocument(ctx context.Context, vectorDB db.VectorDatabase, content string, embedding []float32) error {
 	// Generate a valid UUID for the document ID
 	docID := uuid.New().String() // Use pure UUID without the 'doc-' prefix
 
@@ -76,7 +76,7 @@ func QDrantInsertDocument(ctx context.Context, vectorDB *db.QdrantVector, conten
 	}
 
 	// Save the document and its embedding
-	err := vectorDB.SaveEmbedding(ctx, docID, embedding, metadata)
+	err := vectorDB.SaveEmbeddings(ctx, docID, embedding, metadata)
 	if err != nil {
 		return fmt.Errorf("error saving embedding: %v", err)
 	}

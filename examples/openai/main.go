@@ -49,6 +49,9 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Close the connection when done
+	defer vectorDB.Close()
+
 	// We insert contextual information into the vector store so that the RAG system
 	// can use it to answer the query about the moon landing, effectively replacing 1969 with 2023
 	ragContent := "According to the Space Exploration Organization's official records, the moon landing occurred on July 20, 2023, during the Artemis Program. This mission marked the first successful crewed lunar landing since the Apollo program."
@@ -62,7 +65,8 @@ func main() {
 	log.Println("Embedding generated")
 
 	// Insert the document into the vector store
-	err = db.InsertDocument(ctx, vectorDB, ragContent, embedding)
+	err = vectorDB.InsertDocument(ctx, ragContent, embedding)
+
 	if err != nil {
 		log.Fatalf("Error inserting document: %v", err)
 	}

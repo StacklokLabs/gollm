@@ -34,4 +34,5 @@ type Document struct {
 type VectorDatabase interface {
 	InsertDocument(ctx context.Context, content string, embedding []float32) error
 	QueryRelevantDocuments(ctx context.Context, embedding []float32, backend string) ([]Document, error)
+	SaveEmbeddings(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}) error
 }

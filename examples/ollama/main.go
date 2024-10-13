@@ -25,14 +25,11 @@ func main() {
 	var generationBackend backend.Backend
 
 	// Choose the backend for embeddings based on the config
-
 	embeddingBackend = backend.NewOllamaBackend(ollamaHost, ollamaEmbModel)
-
 	log.Printf("Embedding backend LLM: %s", ollamaEmbModel)
 
 	// Choose the backend for generation based on the config
 	generationBackend = backend.NewOllamaBackend(ollamaHost, ollamaGenModel)
-
 	log.Printf("Generation backend: %s", ollamaGenModel)
 
 	// Initialize the vector database
@@ -41,6 +38,9 @@ func main() {
 		log.Fatalf("Error initializing vector database: %v", err)
 	}
 	log.Println("Vector database initialized")
+
+	// Make sure to close the connection when done
+	defer vectorDB.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -58,7 +58,7 @@ func main() {
 	log.Println("Embedding generated")
 
 	// Insert the document into the vector store
-	err = db.InsertDocument(ctx, vectorDB, ragContent, embedding)
+	err = vectorDB.InsertDocument(ctx, ragContent, embedding)
 	if err != nil {
 		log.Fatalf("Error inserting document: %v", err)
 	}

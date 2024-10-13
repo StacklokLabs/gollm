@@ -22,6 +22,8 @@ package db
 import (
 	"context"
 	"fmt"
+
+	"github.com/google/uuid"
 	"github.com/qdrant/go-client/qdrant"
 )
 
@@ -65,7 +67,9 @@ func NewQdrantVector(address string, port int) (*QdrantVector, error) {
 //
 // Returns:
 //   - An error if the saving operation fails, nil otherwise.
-func (qv *QdrantVector) SaveEmbedding(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}) error {
+//
+// SaveEmbeddings stores an embedding and metadata in Qdrant, implementing the VectorDatabase interface.
+func (qv *QdrantVector) SaveEmbeddings(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}) error {
 	point := &qdrant.PointStruct{
 		Id:      qdrant.NewID(docID),
 		Vectors: qdrant.NewVectors(embedding...),
@@ -167,17 +171,18 @@ func convertPayloadToMap(payload map[string]*qdrant.Value) map[string]interface{
 //
 // Returns:
 //   - An error if the operation fails, nil otherwise.
-func (qv *QdrantVector) InsertDocument(ctx context.Context, vectorDB *QdrantVector, content string, embedding []float32) error {
-	// Generate a unique document ID (e.g., using UUID)
-	docID := fmt.Sprintf("doc-%s", qdrant.NewID(""))
+//
+// QdrantVector should implement the InsertDocument method as defined in VectorDatabase
+func (qv *QdrantVector) InsertDocument(ctx context.Context, content string, embedding []float32) error {
+	// Generate a valid UUID for the document ID
+	docID := uuid.New().String() // Properly generate a UUID
 
-	// Create metadata for the document
 	metadata := map[string]interface{}{
 		"content": content,
 	}
 
-	// Save the document and its embedding
-	err := vectorDB.SaveEmbedding(ctx, docID, embedding, metadata)
+	// Call the SaveEmbeddings method to save the document and its embedding
+	err := qv.SaveEmbeddings(ctx, docID, embedding, metadata)
 	if err != nil {
 		return fmt.Errorf("error saving embedding: %v", err)
 	}
