@@ -23,7 +23,8 @@ func main() {
 	defer cancel()
 
 	// Create the collection in Qdrant
-	err = CreateCollection(ctx, qdrantVector)
+	collection_name := uuid.New().String()
+	err = CreateCollection(ctx, qdrantVector, collection_name)
 	if err != nil {
 		log.Fatalf("Failed to create collection: %v", err)
 	}
@@ -52,10 +53,9 @@ func main() {
 }
 
 // CreateCollection creates a new collection in Qdrant
-func CreateCollection(ctx context.Context, vectorDB *db.QdrantVector) error {
-	collectionName := "sddd" // Replace with your collection name
-	vectorSize := uint64(4)  // Size of the embedding vectors
-	distance := "Cosine"     // Distance metric (Cosine, Euclidean, etc.)
+func CreateCollection(ctx context.Context, vectorDB *db.QdrantVector, collectionName string) error {
+	vectorSize := uint64(4) // Size of the embedding vectors
+	distance := "Cosine"    // Distance metric (Cosine, Euclidean, etc.)
 
 	// Call Qdrant's API to create the collection
 	err := vectorDB.CreateCollection(ctx, collectionName, vectorSize, distance)

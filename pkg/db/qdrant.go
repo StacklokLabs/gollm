@@ -161,7 +161,7 @@ func convertPayloadToMap(payload map[string]*qdrant.Value) map[string]interface{
 	return result
 }
 
-// QDrantInsertDocument inserts a document into the Qdrant vector store.
+// InsertDocument inserts a document into the Qdrant vector store.
 //
 // Parameters:
 //   - ctx: Context for the operation.
