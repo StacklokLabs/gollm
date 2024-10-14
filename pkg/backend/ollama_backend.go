@@ -116,7 +116,10 @@ func (o *OllamaBackend) Generate(ctx context.Context, prompt *Prompt) (string, e
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf(
@@ -160,7 +163,10 @@ func (o *OllamaBackend) Embed(ctx context.Context, input string) ([]float32, err
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
 		return nil, fmt.Errorf(
 			"failed to generate embeddings from Ollama: "+
 				"status code %d, response: %s",

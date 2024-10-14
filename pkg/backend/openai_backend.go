@@ -151,7 +151,10 @@ func (o *OpenAIBackend) Generate(ctx context.Context, prompt *Prompt) (string, e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read response body: %w", err)
+		}
 		return "", fmt.Errorf("failed to generate response from OpenAI: "+
 			"status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -202,7 +205,10 @@ func (o *OpenAIBackend) Embed(ctx context.Context, text string) ([]float32, erro
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
 		return nil, fmt.Errorf("failed to generate embedding from OpenAI: "+
 			"status code %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
