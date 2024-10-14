@@ -18,21 +18,12 @@ var (
 )
 
 func main() {
-	// Initialize Config
 
-	// Select backends based on config
-	var embeddingBackend backend.Backend
-	var generationBackend backend.Backend
-
-	// Choose the backend for embeddings based on the config
-
-	embeddingBackend = backend.NewOllamaBackend(ollamaHost, ollamaEmbModel)
-
+	// Configure the Ollama backend for both embedding and generation
+	embeddingBackend := backend.NewOllamaBackend(ollamaHost, ollamaEmbModel, time.Duration(10*time.Second))
 	log.Printf("Embedding backend LLM: %s", ollamaEmbModel)
 
-	// Choose the backend for generation based on the config
-	generationBackend = backend.NewOllamaBackend(ollamaHost, ollamaGenModel)
-
+	generationBackend := backend.NewOllamaBackend(ollamaHost, ollamaGenModel, time.Duration(10*time.Second))
 	log.Printf("Generation backend: %s", ollamaGenModel)
 
 	// Initialize the vector database
@@ -84,10 +75,18 @@ func main() {
 
 	// Augment the query with retrieved context
 	augmentedQuery := db.CombineQueryWithContext(query, retrievedDocs)
-	log.Printf("LLM Prompt: %s", query)
+
+	prompt := backend.NewPrompt().
+		AddMessage("system", "You are an AI assistant. Use the provided context to answer the user's question as accurately as possible.").
+		AddMessage("user", augmentedQuery).
+		SetParameters(backend.Parameters{
+			MaxTokens:   150, // Supported by LLaMa
+			Temperature: 0.7, // Supported by LLaMa
+			TopP:        0.9, // Supported by LLaMa
+		})
 
 	// Generate response with the specified generation backend
-	response, err := generationBackend.Generate(ctx, augmentedQuery)
+	response, err := generationBackend.Generate(ctx, prompt)
 	if err != nil {
 		log.Fatalf("Failed to generate response: %v", err)
 	}

@@ -4,14 +4,13 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//	http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package backend
 
 import (
@@ -59,23 +58,45 @@ type OllamaEmbeddingResponse struct {
 }
 
 // NewOllamaBackend creates a new OllamaBackend instance.
-func NewOllamaBackend(baseURL, model string) *OllamaBackend {
+func NewOllamaBackend(baseURL, model string, timeout time.Duration) *OllamaBackend {
 	return &OllamaBackend{
 		BaseURL: baseURL,
 		Model:   model,
 		Client: &http.Client{
-			Timeout: defaultTimeout,
+			Timeout: timeout,
 		},
 	}
 }
 
-// Generate produces a response from the Ollama API based on the given prompt.
-func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (string, error) {
+// Generate produces a response from the Ollama API based on the given structured prompt.
+//
+// Parameters:
+//   - ctx: The context for the API request, which can be used for cancellation.
+//   - prompt: A structured prompt containing messages and parameters.
+//
+// Returns:
+//   - A string containing the generated response from the Ollama model.
+//   - An error if the API request fails or if there's an issue processing the response.
+func (o *OllamaBackend) Generate(ctx context.Context, prompt *Prompt) (string, error) {
 	url := o.BaseURL + generateEndpoint
+
+	// Concatenate the messages into a single prompt string
+	var promptText string
+	for _, message := range prompt.Messages {
+		// Append role and content into one string (adjust formatting as needed)
+		promptText += message.Role + ": " + message.Content + "\n"
+	}
+
+	// Construct the request body with concatenated prompt
 	reqBody := map[string]interface{}{
-		"model":  o.Model,
-		"prompt": prompt,
-		"stream": false,
+		"model":             o.Model,
+		"prompt":            promptText, // Use concatenated string
+		"max_tokens":        prompt.Parameters.MaxTokens,
+		"temperature":       prompt.Parameters.Temperature,
+		"top_p":             prompt.Parameters.TopP,
+		"frequency_penalty": prompt.Parameters.FrequencyPenalty,
+		"presence_penalty":  prompt.Parameters.PresencePenalty,
+		"stream":            false, // Explicitly set stream to false
 	}
 
 	reqBodyBytes, err := json.Marshal(reqBody)
@@ -95,8 +116,9 @@ func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (string, er
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf(
 			"failed to generate response from Ollama: "+
 				"status code %d, response: %s",
@@ -105,7 +127,7 @@ func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (string, er
 	}
 
 	var result Response
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(bytes.NewBuffer(bodyBytes)).Decode(&result); err != nil {
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -114,7 +136,6 @@ func (o *OllamaBackend) Generate(ctx context.Context, prompt string) (string, er
 
 // Embed generates embeddings for the given input text using the Ollama API.
 func (o *OllamaBackend) Embed(ctx context.Context, input string) ([]float32, error) {
-
 	url := o.BaseURL + embedEndpoint
 	reqBody := map[string]interface{}{
 		"model":  o.Model,
