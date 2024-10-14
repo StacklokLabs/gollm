@@ -95,7 +95,18 @@ func TestGenerate(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	prompt := "Hello, world!"
+	msgPrompt := "Hello, openAI!"
+
+	prompt := NewPrompt().
+		AddMessage("system", "You are an AI assistant.").
+		AddMessage("user", msgPrompt).
+		SetParameters(Parameters{
+			MaxTokens:        150,
+			Temperature:      0.7,
+			TopP:             0.9,
+			FrequencyPenalty: 0.5,
+			PresencePenalty:  0.6,
+		})
 
 	response, err := backend.Generate(ctx, prompt)
 	if err != nil {
