@@ -56,6 +56,87 @@ Should you wish, the docker-compose will automate the setup of the database.
 Best bet is to see `/examples/*` for reference, this explains how to use
 the library with examples for generation, embeddings and implementing RAG.
 
+There are currently two backend systems supported, Ollama and OpenAI, with
+the ability to generate embeddings for RAG.
+
+## Ollama
+
+First create a Backend object
+
+```go
+generationBackend := backend.NewOllamaBackend("http://localhost:11434", "llama3", time.Duration(10*time.Second))
+```
+
+Create a prompt
+
+```go
+prompt := backend.NewPrompt().
+		AddMessage("system", "You are an AI assistant. Use the provided context to answer the user's question as accurately as possible.").
+		AddMessage("user", "What is love?").
+		SetParameters(backend.Parameters{
+			MaxTokens:        150,
+			Temperature:      0.7,
+			TopP:             0.9,
+		})
+```
+
+Generate a response
+
+```go
+response, err := generationBackend.Generate(ctx, prompt)
+if err != nil {
+    log.Fatalf("Failed to generate response: %v", err)
+}
+```
+
+## OpenAI
+
+First create a Backend object
+
+```go
+generationBackend = backend.NewOpenAIBackend("API_KEY", "gpt-3.5-turbo", 10*time.Second)
+```
+
+Create a prompt
+
+```go
+prompt := backend.NewPrompt().
+    AddMessage("system", "You are an AI assistant. Use the provided context to answer the user's question as accurately as possible.").
+    AddMessage("user", "How much is too much?").
+    SetParameters(backend.Parameters{
+        MaxTokens:        150,
+        Temperature:      0.7,
+        TopP:             0.9,
+        FrequencyPenalty: 0.5,
+        PresencePenalty:  0.6,
+    })
+```
+
+Generate a response
+
+```go
+response, err := generationBackend.Generate(ctx, prompt)
+if err != nil {
+    log.Fatalf("Failed to generate response: %v", err)
+}
+```
+
+## RAG
+
+To generate embeddings for RAG, you can use the `Embeddings` interface in both
+Ollama and OpenAI backends.
+
+```go
+embedding, err := embeddingBackend.Embed(ctx, "Mickey mouse is a real human being")
+if err != nil {
+    log.Fatalf("Error generating embedding: %v", err)
+}
+log.Println("Embedding generated")
+```
+
+A database is also required, we have support for PostGres with pgvector. See `/examples/*` 
+for reference.
+
 # 📝 Contributing
 
 We welcome contributions! Please submit a pull request or raise an issue if

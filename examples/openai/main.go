@@ -30,12 +30,12 @@ func main() {
 
 	// Choose the backend for embeddings based on the config
 
-	embeddingBackend = backend.NewOpenAIBackend(apiKey, openAIEmbModel)
+	embeddingBackend = backend.NewOpenAIBackend(apiKey, openAIEmbModel, 10*time.Second)
 
 	log.Printf("Embedding backend LLM: %s", openAIEmbModel)
 
 	// Choose the backend for generation based on the config
-	generationBackend = backend.NewOpenAIBackend(apiKey, openAIGenModel)
+	generationBackend = backend.NewOpenAIBackend(apiKey, openAIGenModel, 10*time.Second)
 
 	log.Printf("Generation backend: %s", openAIGenModel)
 
@@ -98,8 +98,19 @@ func main() {
 
 	log.Printf("Augmented Query: %s", augmentedQuery)
 
+	prompt := backend.NewPrompt().
+		AddMessage("system", "You are an AI assistant. Use the provided context to answer the user's question as accurately as possible.").
+		AddMessage("user", augmentedQuery).
+		SetParameters(backend.Parameters{
+			MaxTokens:        150,
+			Temperature:      0.7,
+			TopP:             0.9,
+			FrequencyPenalty: 0.5,
+			PresencePenalty:  0.6,
+		})
+
 	// Generate response with the specified generation backend
-	response, err := generationBackend.Generate(ctx, augmentedQuery)
+	response, err := generationBackend.Generate(ctx, prompt)
 	if err != nil {
 		log.Fatalf("Failed to generate response: %v", err)
 	}

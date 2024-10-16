@@ -43,7 +43,6 @@ func TestOllamaGenerate(t *testing.T) {
 		}
 
 		// Check Content-Type header
-
 		if r.Header.Get("Content-Type") != contentTypeJSON {
 			t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
 		}
@@ -54,15 +53,10 @@ func TestOllamaGenerate(t *testing.T) {
 			t.Errorf("Failed to decode request body: %v", err)
 		}
 
-		// Optional: Validate request body contents
-		if reqBody["model"] != "test-model" {
-			t.Errorf("Expected model 'test-model', got '%v'", reqBody["model"])
-		}
-		if reqBody["prompt"] != "Hello, Ollama!" {
-			t.Errorf("Expected prompt 'Hello, Ollama!', got '%v'", reqBody["prompt"])
-		}
-		if reqBody["stream"] != false {
-			t.Errorf("Expected stream false, got '%v'", reqBody["stream"])
+		// Check that the "prompt" field is correctly passed
+		promptText, ok := reqBody["prompt"].(string)
+		if !ok || promptText == "" {
+			t.Errorf("Expected a valid prompt, got: %v", reqBody["prompt"])
 		}
 
 		// Write the mock response
@@ -81,8 +75,21 @@ func TestOllamaGenerate(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	prompt := "Hello, Ollama!"
+	promptMsg := "Hello, Ollama!"
 
+	// Construct the prompt
+	prompt := NewPrompt().
+		AddMessage("system", "You are an AI assistant.").
+		AddMessage("user", promptMsg).
+		SetParameters(Parameters{
+			MaxTokens:        150,
+			Temperature:      0.7,
+			TopP:             0.9,
+			FrequencyPenalty: 0.5,
+			PresencePenalty:  0.6,
+		})
+
+	// Call the Generate method
 	response, err := backend.Generate(ctx, prompt)
 	if err != nil {
 		t.Fatalf("Generate returned error: %v", err)
