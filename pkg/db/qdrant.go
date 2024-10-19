@@ -69,7 +69,7 @@ func NewQdrantVector(address string, port int) (*QdrantVector, error) {
 //   - An error if the saving operation fails, nil otherwise.
 //
 // SaveEmbeddings stores an embedding and metadata in Qdrant, implementing the VectorDatabase interface.
-func (qv *QdrantVector) SaveEmbeddings(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}) error {
+func (qv *QdrantVector) SaveEmbeddings(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}, collection string) error {
 	point := &qdrant.PointStruct{
 		Id:      qdrant.NewID(docID),
 		Vectors: qdrant.NewVectors(embedding...),
@@ -78,7 +78,7 @@ func (qv *QdrantVector) SaveEmbeddings(ctx context.Context, docID string, embedd
 
 	waitUpsert := true
 	_, err := qv.client.Upsert(ctx, &qdrant.UpsertPoints{
-		CollectionName: "gollm", // Replace with actual collection name
+		CollectionName: collection, // Replace with actual collection name
 		Wait:           &waitUpsert,
 		Points:         []*qdrant.PointStruct{point},
 	})
@@ -98,10 +98,10 @@ func (qv *QdrantVector) SaveEmbeddings(ctx context.Context, docID string, embedd
 // Returns:
 //   - A slice of QDrantDocument structs containing the most relevant documents.
 //   - An error if the query fails.
-func (qv *QdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []float32, limit int) ([]Document, error) {
+func (qv *QdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []float32, limit int, colllection string) ([]Document, error) {
 	limitUint := uint64(limit) // Convert limit to uint64
 	query := &qdrant.QueryPoints{
-		CollectionName: "gollm", // Replace with actual collection name
+		CollectionName: colllection, // Replace with actual collection name
 		Query:          qdrant.NewQuery(embedding...),
 		Limit:          &limitUint,
 		WithPayload:    qdrant.NewWithPayloadInclude("content"),
@@ -173,7 +173,7 @@ func convertPayloadToMap(payload map[string]*qdrant.Value) map[string]interface{
 //   - An error if the operation fails, nil otherwise.
 //
 // QdrantVector should implement the InsertDocument method as defined in VectorDatabase
-func (qv *QdrantVector) InsertDocument(ctx context.Context, content string, embedding []float32) error {
+func (qv *QdrantVector) InsertDocument(ctx context.Context, content string, embedding []float32, collection string) error {
 	// Generate a valid UUID for the document ID
 	docID := uuid.New().String() // Properly generate a UUID
 
@@ -182,7 +182,7 @@ func (qv *QdrantVector) InsertDocument(ctx context.Context, content string, embe
 	}
 
 	// Call the SaveEmbeddings method to save the document and its embedding
-	err := qv.SaveEmbeddings(ctx, docID, embedding, metadata)
+	err := qv.SaveEmbeddings(ctx, docID, embedding, metadata, collection)
 	if err != nil {
 		return fmt.Errorf("error saving embedding: %v", err)
 	}

@@ -165,18 +165,6 @@ func ConvertEmbeddingToPGVector(embedding []float32) string {
 	return fmt.Sprintf("{%s}", strings.Join(strValues, ","))
 }
 
-// CombineQueryWithContext combines the query and retrieved documents' content to provide context for generation.
-func CombineQueryWithContext(query string, docs []Document) string {
-	var contextStr string
-	for _, doc := range docs {
-		// Cast doc.Metadata["content"] to a string
-		if content, ok := doc.Metadata["content"].(string); ok {
-			contextStr += content + "\n"
-		}
-	}
-	return fmt.Sprintf("Context: %s\nQuery: %s", contextStr, query)
-}
-
 // InsertDocument inserts a document into the PGVector store, implementing the VectorDatabase interface.
 func (pg *PGVector) InsertDocument(ctx context.Context, content string, embedding []float32) error {
 	// Generate a unique document ID (for simplicity, using UUID)

@@ -21,6 +21,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 )
 
 // Document represents a single document in the vector database.
@@ -35,4 +36,15 @@ type VectorDatabase interface {
 	InsertDocument(ctx context.Context, content string, embedding []float32) error
 	QueryRelevantDocuments(ctx context.Context, embedding []float32, backend string) ([]Document, error)
 	SaveEmbeddings(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}) error
+}
+
+// CombineQueryWithContext combines the user's query with the relevant retrieved documents' content
+func CombineQueryWithContext(query string, retrievedDocs []Document) string {
+	var context string
+	for _, doc := range retrievedDocs {
+		// Include the content of each retrieved document in the context
+		context += fmt.Sprintf("%s\n", doc.Metadata["content"])
+	}
+	// Construct the augmented query with the retrieved context and the user's query
+	return fmt.Sprintf("Context: %s\n\nQuery: %s", context, query)
 }
