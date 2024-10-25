@@ -19,11 +19,18 @@ Language Model backends including [Ollama](https://ollama.com) and [OpenAI](http
 
 ### 1. Installation
 
-First, make sure you have Go installed. Then, add gollm to your project:
+gollm needs to be installed as a dependency in your project. You can do it by importing it in your codebase:
+
+```go
+import "github.com/stackloklabs/gollm"
+```
+
+Then make sure that you have Go installed, and run:
 
 ```bash
-go get github.com/stackloklabs/gollm
+go mod tidy
 ```
+
 
 ##  2. Setting Up Ollama
 
@@ -34,7 +41,7 @@ Install Ollama Server: Download the server from the [official Ollama website](ht
 Pull and run a model
 
 ```bash
-ollama run llama3
+ollama run llama3.2
 ```
 
 Ollama should run on port `11434` and `localhost`, if you change this, don't
