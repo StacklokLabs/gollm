@@ -33,6 +33,9 @@ func main() {
 	}
 	log.Println("Vector database initialized")
 
+	// Make sure to close the connection when done
+	defer vectorDB.Close()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -49,7 +52,7 @@ func main() {
 	log.Println("Embedding generated")
 
 	// Insert the document into the vector store
-	err = db.InsertDocument(ctx, vectorDB, ragContent, embedding)
+	err = vectorDB.InsertDocument(ctx, ragContent, embedding)
 	if err != nil {
 		log.Fatalf("Error inserting document: %v", err)
 	}

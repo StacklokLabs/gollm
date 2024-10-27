@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'  # Requires version 3.9+ for profiles
 
 services:
   postgres:
@@ -13,6 +13,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    profiles:
+      - postgres  # Enable this service only when the 'postgres' profile is active
+
+  qdrant:
+    image: qdrant/qdrant
+    container_name: qdrant-db
+    ports:
+      - "6334:6334"
+    profiles:
+      - qdrant  # Enable this service only when the 'qdrant' profile is active
 
 volumes:
   pgdata:

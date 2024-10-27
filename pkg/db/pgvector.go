@@ -16,6 +16,7 @@
 // It includes implementations for vector storage and retrieval using PostgreSQL
 // with the pgvector extension, enabling efficient similarity search operations
 // on high-dimensional vector data.
+
 package db
 
 import (
@@ -34,11 +35,9 @@ type PGVector struct {
 	conn *pgxpool.Pool
 }
 
-// Document represents a single document in the vector database.
-// It contains a unique identifier and associated metadata.
-type Document struct {
-	ID       string
-	Metadata map[string]interface{}
+// Close closes the PostgreSQL connection pool.
+func (pg *PGVector) Close() {
+	pg.conn.Close()
 }
 
 // NewPGVector creates a new PGVector instance with a connection to the PostgreSQL database.
@@ -67,26 +66,25 @@ func NewPGVector(connString string) (*PGVector, error) {
 //
 // Returns:
 //   - An error if the saving operation fails, nil otherwise.
-func (pg *PGVector) SaveEmbedding(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}) error {
-	// Create a pgvector.Vector type from the float32 slice
-	var query string
+//
+// SaveEmbeddings stores a document embedding and associated metadata in the PostgreSQL database, implementing the VectorDatabase interface.
+func (pg *PGVector) SaveEmbeddings(ctx context.Context, docID string, embedding []float32, metadata map[string]interface{}) error {
 	vector := pgvector.NewVector(embedding)
 
+	// Determine the table based on the embedding length
+	var query string
 	switch len(embedding) {
 	case 1536:
 		query = `INSERT INTO openai_embeddings (doc_id, embedding, metadata) VALUES ($1, $2, $3)`
-
 	case 1024:
 		query = `INSERT INTO ollama_embeddings (doc_id, embedding, metadata) VALUES ($1, $2, $3)`
 	default:
 		return fmt.Errorf("unsupported embedding length: %d", len(embedding))
 	}
-	// Construct the query to insert the vector into the database
 
-	// Execute the query with the pgvector.Vector type
+	// Execute the query to insert the vector into the database
 	_, err := pg.conn.Exec(ctx, query, docID, vector, metadata)
 	if err != nil {
-		// Log the error for debugging purposes
 		return fmt.Errorf("failed to insert document: %w", err)
 	}
 	return nil
@@ -167,21 +165,9 @@ func ConvertEmbeddingToPGVector(embedding []float32) string {
 	return fmt.Sprintf("{%s}", strings.Join(strValues, ","))
 }
 
-// CombineQueryWithContext combines the query and retrieved documents' content to provide context for generation.
-func CombineQueryWithContext(query string, docs []Document) string {
-	var contextStr string
-	for _, doc := range docs {
-		// Cast doc.Metadata["content"] to a string
-		if content, ok := doc.Metadata["content"].(string); ok {
-			contextStr += content + "\n"
-		}
-	}
-	return fmt.Sprintf("Context: %s\nQuery: %s", contextStr, query)
-}
-
-// InsertDocument insert a document into the vector store
-func InsertDocument(ctx context.Context, vectorDB *PGVector, content string, embedding []float32) error {
-	// Generate a unique document ID (for simplicity, using a static value for testing)
+// InsertDocument inserts a document into the PGVector store, implementing the VectorDatabase interface.
+func (pg *PGVector) InsertDocument(ctx context.Context, content string, embedding []float32) error {
+	// Generate a unique document ID (for simplicity, using UUID)
 	docID := fmt.Sprintf("doc-%s", uuid.New().String())
 
 	// Create metadata
@@ -190,7 +176,7 @@ func InsertDocument(ctx context.Context, vectorDB *PGVector, content string, emb
 	}
 
 	// Save the document and its embedding into the vector store
-	err := vectorDB.SaveEmbedding(ctx, docID, embedding, metadata)
+	err := pg.SaveEmbeddings(ctx, docID, embedding, metadata)
 	if err != nil {
 		return fmt.Errorf("error saving embedding: %v", err)
 	}
