@@ -1,6 +1,6 @@
 # Ollama Example Project
 
-This project demonstrates how to use GoLLM's OpenAI's API backend.
+This project demonstrates how to use gorag's OpenAI's API backend.
 
 This code demonstrates using Ollama embeddings and generation models, along with
 how RAG overides LLM knowledge by changing an established fact, already learned

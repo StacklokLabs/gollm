@@ -1,7 +1,7 @@
 # Makefile for Go Project
 
 # Project variables
-PROJECT_NAME := gollm
+PROJECT_NAME := gorag
 BINARY_NAME := $(PROJECT_NAME)
 BUILD_DIR := build
 GO_FILES := $(shell find . -name '*.go' -not -path "./vendor/*")

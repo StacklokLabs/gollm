@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/stackloklabs/gollm/pkg/backend"
-	"github.com/stackloklabs/gollm/pkg/db"
 	"log"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/stackloklabs/gorag/pkg/backend"
+	"github.com/stackloklabs/gorag/pkg/db"
 )
 
 var (
