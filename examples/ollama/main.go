@@ -6,8 +6,8 @@ import (
 
 	"time"
 
-	"github.com/stackloklabs/gollm/pkg/backend"
-	"github.com/stackloklabs/gollm/pkg/db"
+	"github.com/stackloklabs/gorag/pkg/backend"
+	"github.com/stackloklabs/gorag/pkg/db"
 )
 
 var (
@@ -38,6 +38,9 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// Close the connection when done
+	defer vectorDB.Close()
 
 	// We insert contextual information into the vector store so that the RAG system
 	// can use it to answer the query about the moon landing, effectively replacing 1969 with 2023

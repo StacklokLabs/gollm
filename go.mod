@@ -1,4 +1,4 @@
-module github.com/stackloklabs/gollm
+module github.com/stackloklabs/gorag
 
 go 1.22.2
 

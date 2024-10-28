@@ -7,8 +7,8 @@ import (
 
 	"time"
 
-	"github.com/stackloklabs/gollm/pkg/backend"
-	"github.com/stackloklabs/gollm/pkg/db"
+	"github.com/stackloklabs/gorag/pkg/backend"
+	"github.com/stackloklabs/gorag/pkg/db"
 )
 
 var (
@@ -66,7 +66,6 @@ func main() {
 
 	// Insert the document into the vector store
 	err = vectorDB.InsertDocument(ctx, ragContent, embedding)
-
 	if err != nil {
 		log.Fatalf("Error inserting document: %v", err)
 	}
@@ -94,9 +93,6 @@ func main() {
 
 	// Augment the query with retrieved context
 	augmentedQuery := db.CombineQueryWithContext(query, retrievedDocs)
-	log.Printf("LLM Prompt: %s", query)
-
-	log.Printf("Augmented Query: %s", augmentedQuery)
 
 	prompt := backend.NewPrompt().
 		AddMessage("system", "You are an AI assistant. Use the provided context to answer the user's question as accurately as possible.").

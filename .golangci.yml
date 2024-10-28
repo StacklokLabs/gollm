@@ -11,7 +11,7 @@ linters-settings:
     sections:
       - standard
       - default
-      - prefix(github.com/stackloklabs/gollm)
+      - prefix(github.com/stackloklabs/gorag)
   revive:
     # see https://github.com/mgechev/revive#available-rules for details.
     ignore-generated-header: true
