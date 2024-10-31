@@ -84,13 +84,17 @@ func (t *testQdrantVector) SaveEmbeddings(ctx context.Context, docID string, emb
 	return err
 }
 
-func (t *testQdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []float32, limit int, collection string) ([]Document, error) {
-	limitUint := uint64(limit)
+func (t *testQdrantVector) QueryRelevantDocuments(
+	ctx context.Context, embedding []float32, collection string, queryOpts ...QueryOpt,
+) ([]Document, error) {
 	query := &qdrant.QueryPoints{
 		CollectionName: collection,
 		Query:          qdrant.NewQuery(embedding...),
-		Limit:          &limitUint,
 		WithPayload:    qdrant.NewWithPayloadInclude("content"),
+	}
+
+	for _, opt := range queryOpts {
+		opt(query)
 	}
 
 	response, err := t.mockClient.Query(ctx, query)
@@ -186,7 +190,8 @@ func TestQueryRelevantDocuments(t *testing.T) {
 	})).Return(mockResponse, nil)
 
 	// Test the QueryRelevantDocuments function
-	docs, err := qv.QueryRelevantDocuments(ctx, embedding, limit, collection)
+	docs, err := qv.QueryRelevantDocuments(ctx, embedding, collection,
+		WithLimit(5), WithScoreThreshold(0.7))
 	assert.NoError(t, err)
 	assert.Len(t, docs, 1)
 	assert.Equal(t, "test content", docs[0].Metadata["content"])

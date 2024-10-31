@@ -72,7 +72,9 @@ func main() {
 	}
 
 	// Query the most relevant documents based on a given embedding
-	retrievedDocs, err := vectorDB.QueryRelevantDocuments(ctx, queryEmbedding, 5, collection_name)
+	retrievedDocs, err := vectorDB.QueryRelevantDocuments(
+		ctx, queryEmbedding, collection_name,
+		db.WithLimit(5), db.WithScoreThreshold(0.7))
 	if err != nil {
 		log.Fatalf("Failed to query documents: %v", err)
 	}
