@@ -88,23 +88,46 @@ func (qv *QdrantVector) SaveEmbeddings(ctx context.Context, docID string, embedd
 	return nil
 }
 
+// QueryOpt represents an option for a query. This is the type that should
+// be returned from query options functions.
+type QueryOpt func(*qdrant.QueryPoints)
+
+// WithLimit sets the limit of the number of documents to return in a query.
+func WithLimit(limit uint64) QueryOpt {
+	return func(q *qdrant.QueryPoints) {
+		q.Limit = &limit
+	}
+}
+
+// WithScoreThreshold sets the score threshold for a query. The higher the threshold, the more relevant the results.
+func WithScoreThreshold(threshold float32) QueryOpt {
+	return func(q *qdrant.QueryPoints) {
+		q.ScoreThreshold = &threshold
+	}
+}
+
 // QueryRelevantDocuments retrieves the most relevant documents based on a given embedding.
 //
 // Parameters:
 //   - ctx: The context for the query.
 //   - embedding: The query embedding.
 //   - limit: The number of documents to return.
+//   - collection: The collection name to query.
 //
 // Returns:
 //   - A slice of QDrantDocument structs containing the most relevant documents.
 //   - An error if the query fails.
-func (qv *QdrantVector) QueryRelevantDocuments(ctx context.Context, embedding []float32, limit int, colllection string) ([]Document, error) {
-	limitUint := uint64(limit) // Convert limit to uint64
+func (qv *QdrantVector) QueryRelevantDocuments(
+	ctx context.Context, embedding []float32, collection string, queryOpts ...QueryOpt,
+) ([]Document, error) {
 	query := &qdrant.QueryPoints{
-		CollectionName: colllection, // Replace with actual collection name
+		CollectionName: collection, // Replace with actual collection name
 		Query:          qdrant.NewQuery(embedding...),
-		Limit:          &limitUint,
 		WithPayload:    qdrant.NewWithPayloadInclude("content"),
+	}
+
+	for _, opt := range queryOpts {
+		opt(query)
 	}
 
 	response, err := qv.client.Query(ctx, query)
