@@ -1,10 +1,11 @@
-# GoRag: Go Interface for LLM  / RAG development via Multiple Vector Database types 📜
+# GoRag: A Go Library for Retrieval-Augmented Generation (RAG) Development with Multi-Vector Database Support 📜
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/stackloklabs/gorag)](https://goreportcard.com/report/github.com/stackloklabs/gorag)
 [![License](https://img.shields.io/github/license/stackloklabs/gorag)](LICENSE)
 
-GoRag is a Go library that provides an easy interface to interact with Large 
-Language Model backends including [Ollama](https://ollama.com) and [OpenAI](https://openai.com), along with an embeddings interface for RAG (currently with Postgres pgvector).
+GoRag provides an intuitive Go interface for developing Retrieval-Augmented Generation (RAG) applications. It supports multiple vector database types, enabling efficient data retrieval for enhanced generation augmentation.
+
+Language Model backends including [Ollama](https://ollama.com) and [OpenAI](https://openai.com), along with an embeddings interface for RAG using a local embeddings model (mxbai-embed-large) or a hosted such type (such as text-embedding-ada-002 from OpenAI)
 
 
 ## 🌟 Features
@@ -85,7 +86,7 @@ prompt := backend.NewPrompt().
 		})
 ```
 
-Generate a response
+Call the Generations API
 
 ```go
 response, err := generationBackend.Generate(ctx, prompt)
@@ -117,7 +118,7 @@ prompt := backend.NewPrompt().
     })
 ```
 
-Generate a response
+Call the Generations API and get a response
 
 ```go
 response, err := generationBackend.Generate(ctx, prompt)
@@ -179,7 +180,7 @@ Example output:
 2024/10/28 15:08:26 Vector Document generated
 2024/10/28 15:08:26 Vector embeddings generated
 2024/10/28 15:08:26 Retrieved Document: {doc-5630d3f2-bf61-4e13-8ec9-9e863bc1a962 map[content:Mickey mouse is a real human being]}
-2024/10/28 15:08:34 Retrieval-Augmented Generation influenced output from LLM model: In that case, since Mickey Mouse is a real human being (as per your context), I would say... **YES**, Mickey Mouse is indeed a human!
+2024/10/28 15:08:34 Retrieval-Augmented Generation influenced output from LLM model: Mickey Mouse is indeed a human!
 ```
 
 # 📝 Contributing
