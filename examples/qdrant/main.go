@@ -59,7 +59,10 @@ func main() {
 	log.Println("Embedding generated")
 
 	// Insert the document into the Qdrant vector store
-	err = vectorDB.InsertDocument(ctx, ragContent, embedding, collection_name)
+	metadata := map[string]any{
+		"truth": false,
+	}
+	err = vectorDB.InsertDocument(ctx, ragContent, embedding, collection_name, db.AddDocumentMetadata("metadata", metadata))
 	if err != nil {
 		log.Fatalf("Failed to insert document: %v", err)
 	}
@@ -74,14 +77,15 @@ func main() {
 	// Query the most relevant documents based on a given embedding
 	retrievedDocs, err := vectorDB.QueryRelevantDocuments(
 		ctx, queryEmbedding, collection_name,
-		db.WithLimit(5), db.WithScoreThreshold(0.7))
+		db.WithLimit(5), db.WithScoreThreshold(0.7),
+		db.RetrieveMetadata("metadata"))
 	if err != nil {
 		log.Fatalf("Failed to query documents: %v", err)
 	}
 
 	// Print out the retrieved documents
 	for _, doc := range retrievedDocs {
-		log.Printf("Document ID: %s, Content: %v\n", doc.ID, doc.Metadata["content"])
+		log.Printf("Document ID: %s, Content: %v\nMetadata: %v\n", doc.ID, doc.Metadata["content"], doc.Metadata["metadata"])
 	}
 
 	// Augment the query with retrieved context
