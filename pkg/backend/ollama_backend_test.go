@@ -152,7 +152,11 @@ func TestOllamaEmbed(t *testing.T) {
 	ctx := context.Background()
 	input := testEmbeddingText
 
-	embedding, err := backend.Embed(ctx, input)
+	headers := map[string]string{
+		"Content-Type": contentTypeJSON,
+	}
+
+	embedding, err := backend.Embed(ctx, input, headers)
 	if err != nil {
 		t.Fatalf("Embed returned error: %v", err)
 	}
