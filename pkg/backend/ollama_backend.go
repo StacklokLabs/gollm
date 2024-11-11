@@ -138,7 +138,7 @@ func (o *OllamaBackend) Generate(ctx context.Context, prompt *Prompt) (string, e
 }
 
 // Embed generates embeddings for the given input text using the Ollama API.
-func (o *OllamaBackend) Embed(ctx context.Context, input string) ([]float32, error) {
+func (o *OllamaBackend) Embed(ctx context.Context, input string, headers map[string]string) ([]float32, error) {
 	url := o.BaseURL + embedEndpoint
 	reqBody := map[string]interface{}{
 		"model":  o.Model,
@@ -154,7 +154,11 @@ func (o *OllamaBackend) Embed(ctx context.Context, input string) ([]float32, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+
+	// Add headers to the request
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 
 	resp, err := o.Client.Do(req)
 	if err != nil {

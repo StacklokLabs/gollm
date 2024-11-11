@@ -52,8 +52,13 @@ func main() {
 	ragContent := "According to the Space Exploration Organization's official records, the moon landing occurred on July 20, 2023, during the Artemis Program. This mission marked the first successful crewed lunar landing since the Apollo program."
 	userQuery := "When was the moon landing?."
 
+	// Set the headers for the embedding request
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
 	// Embed the query using Ollama Embedding backend
-	embedding, err := embeddingBackend.Embed(ctx, ragContent)
+	embedding, err := embeddingBackend.Embed(ctx, ragContent, headers)
 	if err != nil {
 		log.Fatalf("Error generating embedding: %v", err)
 	}
@@ -70,7 +75,7 @@ func main() {
 	log.Println("Document inserted successfully.")
 
 	// Embed the query using the specified embedding backend
-	queryEmbedding, err := embeddingBackend.Embed(ctx, userQuery)
+	queryEmbedding, err := embeddingBackend.Embed(ctx, userQuery, headers)
 	if err != nil {
 		log.Fatalf("Error generating query embedding: %v", err)
 	}
