@@ -22,6 +22,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/qdrant/go-client/qdrant"
@@ -106,6 +107,17 @@ func WithScoreThreshold(threshold float32) QueryOpt {
 	}
 }
 
+// RetrieveMetadata adds its arguments to the list of payload keys that are retrieved. Content is always retrieved
+func RetrieveMetadata(keys ...string) QueryOpt {
+	if !slices.Contains(keys, "content") {
+		keys = append(keys, "content")
+	}
+
+	return func(q *qdrant.QueryPoints) {
+		q.WithPayload = qdrant.NewWithPayloadInclude(keys...)
+	}
+}
+
 // QueryRelevantDocuments retrieves the most relevant documents based on a given embedding.
 //
 // Parameters:
@@ -157,31 +169,52 @@ func (qv *QdrantVector) QueryRelevantDocuments(
 func convertPayloadToMap(payload map[string]*qdrant.Value) map[string]interface{} {
 	result := make(map[string]interface{})
 	for key, value := range payload {
-		switch v := value.Kind.(type) {
-		case *qdrant.Value_StringValue:
-			result[key] = v.StringValue
-		case *qdrant.Value_BoolValue:
-			result[key] = v.BoolValue
-		case *qdrant.Value_DoubleValue:
-			result[key] = v.DoubleValue
-		case *qdrant.Value_ListValue:
-			var list []interface{}
-			for _, item := range v.ListValue.Values {
-				switch itemVal := item.Kind.(type) {
-				case *qdrant.Value_StringValue:
-					list = append(list, itemVal.StringValue)
-				case *qdrant.Value_BoolValue:
-					list = append(list, itemVal.BoolValue)
-				case *qdrant.Value_DoubleValue:
-					list = append(list, itemVal.DoubleValue)
-				}
-			}
-			result[key] = list
-		default:
-			result[key] = nil
-		}
+		result[key] = convertQdrantValue(value)
 	}
 	return result
+}
+
+func convertQdrantValue(v *qdrant.Value) any {
+	switch v := v.Kind.(type) {
+	case *qdrant.Value_NullValue:
+		return nil
+	case *qdrant.Value_BoolValue:
+		return v.BoolValue
+	case *qdrant.Value_IntegerValue:
+		return v.IntegerValue
+	case *qdrant.Value_DoubleValue:
+		return v.DoubleValue
+	case *qdrant.Value_StringValue:
+		return v.StringValue
+	case *qdrant.Value_ListValue:
+		result := make([]any, len(v.ListValue.Values))
+		for i, val := range v.ListValue.Values {
+			result[i] = convertQdrantValue(val)
+		}
+		return result
+	case *qdrant.Value_StructValue:
+		return convertQdrantStruct(v.StructValue)
+	default:
+		return nil
+	}
+}
+
+func convertQdrantStruct(s *qdrant.Struct) map[string]any {
+	result := make(map[string]any)
+	for key, value := range s.Fields {
+		result[key] = convertQdrantValue(value)
+	}
+	return result
+}
+
+// InsertMetadataOption represents a modifier for payload metadata.
+type InsertMetadataOption func(metadata map[string]any)
+
+// AddDocumentMetadata sets a key-value pair in the metadata. The value can be of any type.
+func AddDocumentMetadata(key string, value any) InsertMetadataOption {
+	return func(metadata map[string]any) {
+		metadata[key] = value
+	}
 }
 
 // InsertDocument inserts a document into the Qdrant vector store.
@@ -196,12 +229,16 @@ func convertPayloadToMap(payload map[string]*qdrant.Value) map[string]interface{
 //   - An error if the operation fails, nil otherwise.
 //
 // QdrantVector should implement the InsertDocument method as defined in VectorDatabase
-func (qv *QdrantVector) InsertDocument(ctx context.Context, content string, embedding []float32, collection string) error {
+func (qv *QdrantVector) InsertDocument(ctx context.Context, content string, embedding []float32, collection string, opts ...InsertMetadataOption) error {
 	// Generate a valid UUID for the document ID
 	docID := uuid.New().String() // Properly generate a UUID
 
 	metadata := map[string]interface{}{
 		"content": content,
+	}
+
+	for _, opt := range opts {
+		opt(metadata)
 	}
 
 	// Call the SaveEmbeddings method to save the document and its embedding
