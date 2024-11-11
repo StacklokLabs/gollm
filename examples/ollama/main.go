@@ -12,6 +12,7 @@ import (
 
 var (
 	ollamaHost     = "http://localhost:11434"
+	ollamaEmdHost  = "http://localhost:11434"
 	ollamaEmbModel = "mxbai-embed-large"
 	ollamaGenModel = "llama3"
 	databaseURL    = "postgres://user:password@localhost:5432/dbname?sslmode=disable"
@@ -20,7 +21,7 @@ var (
 func main() {
 
 	// Configure the Ollama backend for both embedding and generation
-	embeddingBackend := backend.NewOllamaBackend(ollamaHost, ollamaEmbModel, time.Duration(10*time.Second))
+	embeddingBackend := backend.NewOllamaBackend(ollamaEmdHost, ollamaEmbModel, time.Duration(10*time.Second))
 	log.Printf("Embedding backend LLM: %s", ollamaEmbModel)
 
 	generationBackend := backend.NewOllamaBackend(ollamaHost, ollamaGenModel, time.Duration(10*time.Second))
